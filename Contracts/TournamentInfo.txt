@@ -1,0 +1,14 @@
+namespace GameServer.Contracts
+{
+    /// <summary>Turnuva durum bilgisi</summary>
+    public class TournamentInfo
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+        public int  MaxPlayers { get; set; }
+        public int  PlayerCount { get; set; }
+        public bool Private { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

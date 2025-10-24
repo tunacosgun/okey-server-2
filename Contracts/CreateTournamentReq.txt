@@ -1,0 +1,11 @@
+namespace GameServer.Contracts
+{
+    /// <summary>Turnuva oluşturma isteği</summary>
+    public class CreateTournamentReq
+    {
+        public string Name { get; set; } = "Tournament";
+        public int    MaxPlayers { get; set; } = 16;
+        public bool   Private { get; set; } = false;
+        public string? Password { get; set; }
+    }
+}

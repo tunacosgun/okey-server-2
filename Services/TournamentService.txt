@@ -1,0 +1,89 @@
+// GameServer/Services/TournamentService.cs
+using System.Collections.Concurrent;
+using GameServer.Contracts;
+
+namespace GameServer.Services;
+
+public class TournamentService
+{
+    private class Tour
+    {
+        public string Id { get; init; } = Guid.NewGuid().ToString("N");
+        public string Mode { get; init; } = "klasik";
+        public int SeatsPerTable { get; init; } = 4;
+        public int TargetPlayers { get; init; } = 8;
+        public string State { get; set; } = "PENDING"; // PENDING/ACTIVE/DONE
+        public List<string> Players { get; } = new();
+    }
+
+    private readonly ConcurrentDictionary<string, Tour> _tours = new();
+
+    public string Create(CreateTournamentReq req)
+    {
+        var t = new Tour
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Mode = req.Mode,
+            SeatsPerTable = Math.Clamp(req.SeatsPerTable, 2, 4),
+            TargetPlayers = Math.Max(2, req.TargetPlayers),
+            State = "PENDING"
+        };
+        _tours[t.Id] = t;
+        return t.Id;
+    }
+
+    public bool TryGet(string id, out TournamentInfo info)
+    {
+        if (_tours.TryGetValue(id, out var t))
+        {
+            info = new TournamentInfo(t.Id, t.Mode, t.SeatsPerTable, t.TargetPlayers, t.State, t.Players.Count);
+            return true;
+        }
+        info = null!;
+        return false;
+    }
+
+    public TournamentInfo[] List() =>
+        _tours.Values.Select(t => new TournamentInfo(t.Id, t.Mode, t.SeatsPerTable, t.TargetPlayers, t.State, t.Players.Count))
+                     .OrderBy(t => t.Mode).ToArray();
+
+    public bool Join(string id, string player, out string error)
+    {
+        error = "";
+        if (!_tours.TryGetValue(id, out var t)) { error = "not_found"; return false; }
+        if (t.State != "PENDING") { error = "already_started"; return false; }
+        if (t.Players.Contains(player)) { error = "already_joined"; return false; }
+        if (t.Players.Count >= t.TargetPlayers) { error = "full"; return false; }
+        t.Players.Add(player);
+        return true;
+    }
+
+    public IEnumerable<(string tableId, string[] players)> Start(string id)
+    {
+        if (!_tours.TryGetValue(id, out var t)) yield break;
+        if (t.State != "PENDING") yield break;
+
+        t.State = "ACTIVE";
+
+        // Basit eşleştirme: ardışık N’li gruplar
+        var chunk = t.SeatsPerTable;
+        var batch = new List<string>(chunk);
+        int tableIx = 1;
+
+        foreach (var p in t.Players)
+        {
+            batch.Add(p);
+            if (batch.Count == chunk)
+            {
+                var tableId = $"{id}-T{tableIx++}";
+                yield return (tableId, batch.ToArray());
+                batch.Clear();
+            }
+        }
+        if (batch.Count > 1) // artanları da masa yap
+        {
+            var tableId = $"{id}-T{tableIx++}";
+            yield return (tableId, batch.ToArray());
+        }
+    }
+}
